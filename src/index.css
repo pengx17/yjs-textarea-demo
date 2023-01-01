@@ -1,0 +1,8 @@
+.input {
+  border: 2px solid burlywood;
+  border-radius: 4px;
+  padding: 2px 4px;
+  font-size: 24px;
+  height: calc(100vh - 160px);
+  width: calc(100vw - 160px);
+}

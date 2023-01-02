@@ -196,21 +196,6 @@ function App() {
         <textarea className="input" ref={ref} />
         <div className="input overlay">{fragments}</div>
       </div>
-      <div className="users">
-        Users
-        {userInfos?.map((userInfo) => {
-          return (
-            <div
-              key={userInfo.id}
-              className="user"
-              style={{ color: userInfo.color }}
-              data-current={userInfo.current}
-            >
-              {userInfo.id}: {userInfo.cursor}
-            </div>
-          );
-        })}
-      </div>
     </div>
   );
 }

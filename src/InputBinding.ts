@@ -17,9 +17,20 @@ export function createInputBinding(
   const getElValue = (): string => {
     return inputElement.value ?? "";
   };
+  const getRelativePos = (index: number) => {
+    return Y.createRelativePositionFromTypeIndex(yText, index, index);
+  };
+  const getAbsoluteIndex = (yPosRel: Y.RelativePosition) => {
+    return Y.createAbsolutePositionFromRelativePosition(yPosRel, yDoc)?.index;
+  };
   const yDoc = yText.doc!;
   let oldRange = [0, 0];
   let oldValue = "";
+
+  // relative positions before transactions
+  // so that we can restore after update
+  let yPosRel0: Y.RelativePosition | null = null;
+  let yPosRel1: Y.RelativePosition | null = null;
 
   const kdListener = (_event: KeyboardEvent) => {
     oldRange = getRange();
@@ -57,17 +68,38 @@ export function createInputBinding(
     inputElement.setSelectionRange(newRange[0], newRange[1]);
   };
 
-  const updateListener = (e: any, origin: any) => {
+  const beforeTransactionListener = () => {
+    if (yPosRel0 || yPosRel1) {
+      return
+    }
+    const range = getRange();
+    yPosRel0 = getRelativePos(range[0]);
+    yPosRel1 = getRelativePos(range[1]);
+  };
+
+  const afterTransactionsListener = () => {
+    yPosRel0 = null;
+    yPosRel1 = null;
+  }
+
+  const updateListener = (_: any, origin: any) => {
     if (origin !== undoManager && origin !== null) {
-      const range = getRange();
-      Y.applyUpdate(yDoc, e);
       inputElement.value = yText.toString();
-      inputElement.setSelectionRange(range[0], range[1]);
+    }
+    if (yPosRel0 && yPosRel1) {
+      const range = getRange();
+      const newRange = [
+        getAbsoluteIndex(yPosRel0) ?? range[0],
+        getAbsoluteIndex(yPosRel1) ?? range[1],
+      ] as const;
+      inputElement.setSelectionRange(newRange[0], newRange[1]);
     }
     setAwarenessCursor();
   };
 
   yDoc.on("update", updateListener);
+  yDoc.on("beforeAllTransactions", beforeTransactionListener);
+  yDoc.on("afterAllTransactions", afterTransactionsListener);
 
   setAwarenessCursor();
 
@@ -82,6 +114,8 @@ export function createInputBinding(
     // @ts-ignore
     inputElement.removeEventListener("input", inputListener);
     document.removeEventListener("selectionchange", setAwarenessCursor);
-    yText.doc?.off("update", updateListener);
+    yDoc.off("update", updateListener);
+    yDoc.off("beforeAllTransactions", beforeTransactionListener);
+    yDoc.off("afterAllTransactions", afterTransactionsListener);
   };
 }

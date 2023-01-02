@@ -1,8 +1,67 @@
-.input {
-  border: 2px solid burlywood;
+.text-container {
   border-radius: 4px;
-  padding: 2px 4px;
-  font-size: 24px;
+  border: 2px solid burlywood;
+  position: relative;
   height: calc(100vh - 160px);
   width: calc(100vw - 160px);
+}
+
+.input {
+  font-size: 24px;
+  width: 100%;
+  height: 100%;
+  white-space: pre-wrap;
+  resize: none;
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  border: none;
+  padding: 2px 4px;
+  background: transparent;
+}
+
+.overlay {
+  pointer-events: none;
+}
+
+.user {
+  margin-left: 8px;
+}
+
+.user[data-current="true"] {
+  font-weight: bold;
+}
+
+.hidden {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.user-cursor {
+  position: relative;
+}
+
+.user-cursor::before {
+  content: ' ';
+  position: absolute;
+  display: block;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  height: 1.2em;
+  background-color: var(--user-color);
+}
+
+.user-cursor-label {
+  display: inline-block;
+  margin-left: 4px;
+  background-color: var(--user-color);
+  position: absolute;
+  top: -1em;
+  left: -4px;
+  padding: 0 4px;
+  font-size: 10px;
 }

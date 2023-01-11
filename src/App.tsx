@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as Y from "yjs";
 import { IndexeddbPersistence } from "y-indexeddb";
 import { WebrtcProvider } from "y-webrtc";
 import * as awarenessProtocol from "y-protocols/awareness.js";
 import { createInputBinding } from "./InputBinding";
+import { UserInfo } from "./types";
 
 const room = "pengx17-test-textarea";
 
@@ -52,19 +53,6 @@ const useYTextString = (text?: Y.Text) => {
   return value;
 };
 
-interface SelectionRange {
-  id: string;
-  anchor: Y.RelativePosition;
-  focus: Y.RelativePosition; // only show anchor for now.
-}
-
-interface UserInfo {
-  id: number;
-  color: string;
-  cursor?: SelectionRange;
-  current: boolean;
-}
-
 const useAwarenessUserInfos = (awareness?: awarenessProtocol.Awareness) => {
   const [userInfos, setUserInfos] = useState<UserInfo[]>([]);
 
@@ -108,12 +96,12 @@ const myColor = usercolors[Math.floor(Math.random() * usercolors.length)];
 
 function App() {
   const ref = useRef<HTMLTextAreaElement>(null);
+  const overlayRef = useRef<HTMLDivElement>(null);
   const active = useTabActive();
   const [yText, setYText] = useState<Y.Text>();
   const text = useYTextString(yText);
   const [awareness, setAwareness] = useState<awarenessProtocol.Awareness>();
   const userInfos = useAwarenessUserInfos(awareness);
-  const yDoc = yText?.doc;
 
   useEffect(() => {
     if (ref.current) {
@@ -154,66 +142,73 @@ function App() {
     }
   }, []);
 
-  const fragments = useMemo(() => {
-    if (!text || !yDoc) {
+  const getClientRects = useCallback((start: number, end: number) => {
+    if (!overlayRef.current || !overlayRef.current.firstChild) {
       return [];
     }
+    const range = document.createRange();
+    const max = overlayRef.current.firstChild.textContent?.length ?? 99999;
+    range.setStart(overlayRef.current.firstChild, Math.min(start, max));
+    range.setEnd(overlayRef.current.firstChild, Math.min(end, max));
+    return Array.from(range.getClientRects());
+  }, []);
 
-    const toAbsolute = (relativePosition?: Y.RelativePosition) => {
-      if (relativePosition) {
+  const renderCursor = useCallback(
+    (userInfo: UserInfo) => {
+      const yDoc = yText?.doc;
+      const overlayRect = overlayRef.current?.getBoundingClientRect();
+      if (!yDoc || !userInfo.cursor || !overlayRect || userInfo.current) {
+        return [];
+      }
+      const { anchor, focus } = userInfo.cursor;
+      const toAbsolute = (yPosRel?: Y.RelativePosition) => {
+        const absPos = yPosRel
+          ? Y.createAbsolutePositionFromRelativePosition(yPosRel, yDoc)
+          : null;
+        return absPos?.index ?? -1;
+      };
+      const [start, end] = [toAbsolute(anchor), toAbsolute(focus)];
+      let rects = getClientRects(start, end);
+
+      if (start === end && rects.length > 1) {
+        rects = [rects.at(-1)!];
+      }
+
+      return rects.map((rect, idx) => {
         return (
-          Y.createAbsolutePositionFromRelativePosition(relativePosition, yDoc)
-            ?.index ?? -1
+          <div
+            key={userInfo.id + "_" + idx}
+            className="user-cursor"
+            style={{
+              // @ts-ignore
+              "--user-color": userInfo.color,
+              left: rect.left - overlayRect.left,
+              top: rect.top - overlayRect.top,
+              width: rect.width,
+              height: rect.height,
+            }}
+          >
+            {idx === 0 && (
+              <div className="user-cursor-label">{userInfo.id}</div>
+            )}
+            <div className="user-cursor-selection" />
+          </div>
         );
-      }
-      return -1;
-    };
-
-    const sortedUserInfos = [...userInfos].sort(
-      (a, b) => toAbsolute(a.cursor?.anchor) - toAbsolute(b.cursor?.anchor)
-    );
-    const fragments = [];
-
-    let lastCursor = 0;
-    for (let i = 0; i < sortedUserInfos.length; i++) {
-      const userInfo = sortedUserInfos[i];
-      if (userInfo.current) {
-        continue;
-      }
-      if (toAbsolute(userInfo.cursor?.anchor) !== lastCursor) {
-        fragments.push(
-          <span className="hidden" key={i}>
-            {text.substring(lastCursor, toAbsolute(userInfo.cursor?.anchor))}
-          </span>
-        );
-      }
-      fragments.push(
-        <span
-          className="user-cursor"
-          key={userInfo.id}
-          // @ts-ignore
-          style={{ "--user-color": userInfo.color }}
-        >
-          <div className="user-cursor-label">{userInfo.id}</div>
-        </span>
-      );
-      lastCursor = toAbsolute(userInfo.cursor?.anchor);
-    }
-    if (lastCursor !== text.length) {
-      fragments.push(
-        <span key={sortedUserInfos.length} className="hidden">
-          {text.substring(lastCursor, text.length)}
-        </span>
-      );
-    }
-    return fragments;
-  }, [userInfos, text, yDoc]);
+      });
+    },
+    [yText]
+  );
 
   return (
     <div className="App" data-active={active}>
       <div className="text-container">
         <textarea className="input" ref={ref} />
-        <div className="input overlay">{fragments}</div>
+        <div className="overlay cursors-container">
+          {userInfos.map((userInfo) => renderCursor(userInfo))}
+        </div>
+        <div className="input overlay selection-helper hidden" ref={overlayRef}>
+          {text}
+        </div>
       </div>
     </div>
   );

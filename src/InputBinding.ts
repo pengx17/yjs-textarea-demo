@@ -1,5 +1,6 @@
 import * as Y from "yjs";
 import * as awarenessProtocol from "y-protocols/awareness.js";
+import { UserInfo } from "./types";
 
 export function createInputBinding(
   yText: Y.Text,
@@ -17,26 +18,22 @@ export function createInputBinding(
   const getElValue = (): string => {
     return inputElement.value ?? "";
   };
-  const getRelativePos = (index: number) => {
-    return Y.createRelativePositionFromTypeIndex(yText, index, index);
+  const toRelative = (index: number) => {
+    return Y.createRelativePositionFromTypeIndex(yText, index);
   };
-  const getAbsoluteIndex = (yPosRel: Y.RelativePosition) => {
-    return Y.createAbsolutePositionFromRelativePosition(yPosRel, yDoc)?.index;
+  const toAbsolute = (yPosRel?: Y.RelativePosition) => {
+    const absPos = yPosRel
+      ? Y.createAbsolutePositionFromRelativePosition(yPosRel, yDoc)
+      : null;
+    return absPos?.index ?? -1;
   };
   const yDoc = yText.doc!;
-  let oldRange = [0, 0];
-  let oldValue = "";
-
-  const kdListener = (_event: KeyboardEvent) => {
-    oldRange = getRange();
-    oldValue = getElValue();
-  };
 
   const resetLocalAwarenessCursor = () => {
     const [s, e] = getRange();
     awareness.setLocalStateField("cursor", {
-      anchor: getRelativePos(s ?? 0),
-      focus: getRelativePos(e ?? 0),
+      anchor: toRelative(s ?? 0),
+      focus: toRelative(e ?? 0),
     });
   };
 
@@ -44,6 +41,9 @@ export function createInputBinding(
     const newValue = getElValue();
     const newRange = getRange();
     const inputType = event.inputType;
+    const cursor: UserInfo["cursor"] = awareness.getLocalState()?.cursor;
+    const oldRange = [toAbsolute(cursor?.anchor), toAbsolute(cursor?.focus)];
+    const oldValue = yText.toString();
     // see https://rawgit.com/w3c/input-events/v1/index.html#interface-InputEvent-Attributes
     if (inputType.startsWith("insert")) {
       yDoc.transact(() => {
@@ -71,14 +71,11 @@ export function createInputBinding(
     if (origin !== undoManager && origin !== null) {
       inputElement.value = yText.toString();
     }
-    const yPosRel0 = awareness.states.get(yDoc.clientID)?.cursor?.anchor;
-    const yPosRel1 = awareness.states.get(yDoc.clientID)?.cursor?.anchor;
+    const cursor: UserInfo["cursor"] = awareness.getLocalState()?.cursor;
+    const yPosRel0 = cursor?.anchor;
+    const yPosRel1 = cursor?.focus;
     if (yPosRel0 && yPosRel1) {
-      const range = getRange();
-      const newRange = [
-        getAbsoluteIndex(yPosRel0) ?? range[0],
-        getAbsoluteIndex(yPosRel1) ?? range[1],
-      ] as const;
+      const newRange = [toAbsolute(yPosRel0), toAbsolute(yPosRel1)] as const;
       inputElement.setSelectionRange(newRange[0], newRange[1]);
     }
     resetLocalAwarenessCursor();
@@ -89,13 +86,9 @@ export function createInputBinding(
   resetLocalAwarenessCursor();
 
   // @ts-ignore
-  inputElement.addEventListener("keydown", kdListener);
-  // @ts-ignore
   inputElement.addEventListener("input", inputListener);
   document.addEventListener("selectionchange", resetLocalAwarenessCursor);
   return () => {
-    // @ts-ignore
-    inputElement.removeEventListener("keydown", kdListener);
     // @ts-ignore
     inputElement.removeEventListener("input", inputListener);
     document.removeEventListener("selectionchange", resetLocalAwarenessCursor);

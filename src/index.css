@@ -16,12 +16,18 @@
   bottom: 0;
   right: 0;
   border: none;
-  padding: 2px 4px;
+  padding: 4px 8px;
   background: transparent;
   overflow-wrap: break-word;
 }
 
 .overlay {
+  width: 100%;
+  height: 100%;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  right: 0;
   position: absolute;
   pointer-events: none;
 }
@@ -40,18 +46,26 @@
 }
 
 .user-cursor {
-  position: relative;
+  position: absolute;
+  opacity: 0.8;
+}
+
+.user-cursor-selection {
+  background-color: var(--user-color);
+  opacity: 0.6;
+  width: 100%;
+  height: 100%;
 }
 
 .user-cursor::before {
-  content: ' ';
+  content: " ";
   position: absolute;
   display: block;
   left: 0;
   top: 0;
   bottom: 0;
   width: 2px;
-  height: 1.2em;
+  height: 100%;
   background-color: var(--user-color);
 }
 

@@ -52,10 +52,16 @@ const useYTextString = (text?: Y.Text) => {
   return value;
 };
 
+interface SelectionRange {
+  id: string;
+  anchor: Y.RelativePosition;
+  focus: Y.RelativePosition; // only show anchor for now.
+}
+
 interface UserInfo {
   id: number;
   color: string;
-  cursor: number;
+  cursor?: SelectionRange;
   current: boolean;
 }
 
@@ -107,6 +113,7 @@ function App() {
   const text = useYTextString(yText);
   const [awareness, setAwareness] = useState<awarenessProtocol.Awareness>();
   const userInfos = useAwarenessUserInfos(awareness);
+  const yDoc = yText?.doc;
 
   useEffect(() => {
     if (ref.current) {
@@ -148,10 +155,23 @@ function App() {
   }, []);
 
   const fragments = useMemo(() => {
-    if (!text) {
+    if (!text || !yDoc) {
       return [];
     }
-    const sortedUserInfos = [...userInfos].sort((a, b) => a.cursor - b.cursor);
+
+    const toAbsolute = (relativePosition?: Y.RelativePosition) => {
+      if (relativePosition) {
+        return (
+          Y.createAbsolutePositionFromRelativePosition(relativePosition, yDoc)
+            ?.index ?? -1
+        );
+      }
+      return -1;
+    };
+
+    const sortedUserInfos = [...userInfos].sort(
+      (a, b) => toAbsolute(a.cursor?.anchor) - toAbsolute(b.cursor?.anchor)
+    );
     const fragments = [];
 
     let lastCursor = 0;
@@ -160,9 +180,11 @@ function App() {
       if (userInfo.current) {
         continue;
       }
-      if (userInfo.cursor !== lastCursor) {
+      if (toAbsolute(userInfo.cursor?.anchor) !== lastCursor) {
         fragments.push(
-          <span  className="hidden" key={i}>{text.substring(lastCursor, userInfo.cursor)}</span>
+          <span className="hidden" key={i}>
+            {text.substring(lastCursor, toAbsolute(userInfo.cursor?.anchor))}
+          </span>
         );
       }
       fragments.push(
@@ -175,20 +197,17 @@ function App() {
           <div className="user-cursor-label">{userInfo.id}</div>
         </span>
       );
-      lastCursor = userInfo.cursor;
+      lastCursor = toAbsolute(userInfo.cursor?.anchor);
     }
     if (lastCursor !== text.length) {
       fragments.push(
-        <span
-          key={sortedUserInfos.length}
-          className="hidden"
-        >
+        <span key={sortedUserInfos.length} className="hidden">
           {text.substring(lastCursor, text.length)}
         </span>
       );
     }
     return fragments;
-  }, [userInfos, text]);
+  }, [userInfos, text, yDoc]);
 
   return (
     <div className="App" data-active={active}>

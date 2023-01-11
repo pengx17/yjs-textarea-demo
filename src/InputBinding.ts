@@ -27,18 +27,17 @@ export function createInputBinding(
   let oldRange = [0, 0];
   let oldValue = "";
 
-  // relative positions before transactions
-  // so that we can restore after update
-  let yPosRel0: Y.RelativePosition | null = null;
-  let yPosRel1: Y.RelativePosition | null = null;
-
   const kdListener = (_event: KeyboardEvent) => {
     oldRange = getRange();
     oldValue = getElValue();
   };
 
-  const setAwarenessCursor = () => {
-    awareness.setLocalStateField("cursor", getRange()[0] ?? 0);
+  const resetLocalAwarenessCursor = () => {
+    const [s, e] = getRange();
+    awareness.setLocalStateField("cursor", {
+      anchor: getRelativePos(s ?? 0),
+      focus: getRelativePos(e ?? 0),
+    });
   };
 
   const inputListener = (event: InputEvent) => {
@@ -68,24 +67,12 @@ export function createInputBinding(
     inputElement.setSelectionRange(newRange[0], newRange[1]);
   };
 
-  const beforeTransactionListener = () => {
-    if (yPosRel0 || yPosRel1) {
-      return
-    }
-    const range = getRange();
-    yPosRel0 = getRelativePos(range[0]);
-    yPosRel1 = getRelativePos(range[1]);
-  };
-
-  const afterTransactionsListener = () => {
-    yPosRel0 = null;
-    yPosRel1 = null;
-  }
-
   const updateListener = (_: any, origin: any) => {
     if (origin !== undoManager && origin !== null) {
       inputElement.value = yText.toString();
     }
+    const yPosRel0 = awareness.states.get(yDoc.clientID)?.cursor?.anchor;
+    const yPosRel1 = awareness.states.get(yDoc.clientID)?.cursor?.anchor;
     if (yPosRel0 && yPosRel1) {
       const range = getRange();
       const newRange = [
@@ -94,28 +81,24 @@ export function createInputBinding(
       ] as const;
       inputElement.setSelectionRange(newRange[0], newRange[1]);
     }
-    setAwarenessCursor();
+    resetLocalAwarenessCursor();
   };
 
   yDoc.on("update", updateListener);
-  yDoc.on("beforeAllTransactions", beforeTransactionListener);
-  yDoc.on("afterAllTransactions", afterTransactionsListener);
 
-  setAwarenessCursor();
+  resetLocalAwarenessCursor();
 
   // @ts-ignore
   inputElement.addEventListener("keydown", kdListener);
   // @ts-ignore
   inputElement.addEventListener("input", inputListener);
-  document.addEventListener("selectionchange", setAwarenessCursor);
+  document.addEventListener("selectionchange", resetLocalAwarenessCursor);
   return () => {
     // @ts-ignore
     inputElement.removeEventListener("keydown", kdListener);
     // @ts-ignore
     inputElement.removeEventListener("input", inputListener);
-    document.removeEventListener("selectionchange", setAwarenessCursor);
+    document.removeEventListener("selectionchange", resetLocalAwarenessCursor);
     yDoc.off("update", updateListener);
-    yDoc.off("beforeAllTransactions", beforeTransactionListener);
-    yDoc.off("afterAllTransactions", afterTransactionsListener);
   };
 }

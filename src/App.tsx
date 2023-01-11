@@ -178,7 +178,7 @@ function App() {
         return (
           <div
             key={userInfo.id + "_" + idx}
-            className="user-cursor"
+            className="user-indicator"
             style={{
               // @ts-ignore
               "--user-color": userInfo.color,
@@ -188,8 +188,10 @@ function App() {
               height: rect.height,
             }}
           >
-            {idx === 0 && (
-              <div className="user-cursor-label">{userInfo.id}</div>
+            {idx === rects.length - 1 && (
+              <div className="user-cursor">
+                <div className="user-cursor-label">{userInfo.id}</div>
+              </div>
             )}
             <div className="user-cursor-selection" />
           </div>

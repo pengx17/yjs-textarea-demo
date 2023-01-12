@@ -5,25 +5,6 @@ import { Textarea } from "./Textarea";
 import { UserInfo } from "./types";
 import { Op } from "quill-delta";
 
-const useYTextString = (text?: Y.Text) => {
-  const [value, setValue] = React.useState(text?.toString());
-
-  React.useEffect(() => {
-    const listener = () => {
-      setValue(text?.toString());
-    };
-    text?.observe(listener);
-    if (text) {
-      listener();
-    }
-    return () => {
-      text?.unobserve(listener);
-    };
-  }, [text]);
-
-  return value;
-};
-
 const useAwarenessUserInfos = (awareness?: awarenessProtocol.Awareness) => {
   const [userInfos, setUserInfos] = React.useState<UserInfo[]>([]);
 
@@ -74,10 +55,10 @@ export const YjsTextarea = (props: {
   awareness?: awarenessProtocol.Awareness;
 }) => {
   const { yText, awareness } = props;
-  const text = useYTextString(yText);
   const userInfos = useAwarenessUserInfos(awareness);
   const ref = React.useRef<HTMLTextAreaElement>(null);
-  const overlayRef = React.useRef<HTMLDivElement>(null);
+  const helperRef = React.useRef<HTMLDivElement>(null);
+  const cursorsRef = React.useRef<HTMLDivElement>(null);
 
   const undoManager = React.useMemo(() => {
     if (yText) {
@@ -100,7 +81,6 @@ export const YjsTextarea = (props: {
 
   const onTextChange = React.useCallback(
     (delta: Op[] | "undo" | "redo") => {
-      console.log("onTextChange", delta);
       const input$ = ref.current;
       if (yText && undoManager && input$) {
         if (delta === "undo") {
@@ -122,11 +102,9 @@ export const YjsTextarea = (props: {
     if (yText && yText.doc && ref.current && awareness) {
       const yDoc = yText.doc;
       const input$ = ref.current;
-      input$.value = yText.toString();
-      const updateListener = (_: any, origin: any) => {
-        if (origin !== undoManager && origin !== null) {
-          console.log("remote update");
-          input$.value = yText.toString();
+      const updateListener = (_?: any, origin?: any) => {
+        input$.value = yText.toString();
+        if (origin !== undoManager && origin != null) {
           const cursor: UserInfo["cursor"] = awareness.getLocalState()?.cursor;
           const yPosRel0 = cursor?.anchor;
           const yPosRel1 = cursor?.focus;
@@ -137,9 +115,12 @@ export const YjsTextarea = (props: {
             ] as const;
             input$.setSelectionRange(newRange[0], newRange[1]);
           }
-          onSelectionChange();
         }
+        onSelectionChange();
       };
+
+      updateListener();
+      onSelectionChange();
 
       yDoc.on("update", updateListener);
 
@@ -152,7 +133,8 @@ export const YjsTextarea = (props: {
   const renderCursor = React.useCallback(
     (userInfo: UserInfo) => {
       const yDoc = yText?.doc;
-      const overlayRect = overlayRef.current?.getBoundingClientRect();
+      const text = yText?.toString() ?? "";
+      const overlayRect = helperRef.current?.getBoundingClientRect();
       if (!yDoc || !userInfo.cursor || !overlayRect || userInfo.current) {
         return [];
       }
@@ -190,24 +172,41 @@ export const YjsTextarea = (props: {
       });
 
       function getClientRects(start: number, end: number) {
-        if (
-          !overlayRef.current ||
-          !overlayRef.current.firstChild ||
-          start === -1 ||
-          end === -1
-        ) {
+        if (!helperRef.current || start === -1 || end === -1) {
+          return [];
+        }
+        helperRef.current.textContent = text + "\n";
+        if (helperRef.current.firstChild == null) {
           return [];
         }
         const range = document.createRange();
-        const max =
-          overlayRef.current.firstChild.textContent?.length ?? Number.MAX_VALUE;
-        range.setStart(overlayRef.current.firstChild, Math.min(start, max));
-        range.setEnd(overlayRef.current.firstChild, Math.min(end, max));
+        const max = text?.length ?? Number.MAX_VALUE;
+        range.setStart(helperRef.current.firstChild, Math.min(start, max));
+        range.setEnd(helperRef.current.firstChild, Math.min(end, max));
         return Array.from(range.getClientRects());
       }
     },
     [yText]
   );
+
+  // sync scroll positions
+  React.useEffect(() => {
+    if (ref.current && cursorsRef.current && helperRef.current) {
+      const input$ = ref.current;
+      const cursors$ = cursorsRef.current;
+      const helper$ = helperRef.current;
+      const onScroll = () => {
+        cursors$.scrollLeft = input$.scrollLeft;
+        cursors$.scrollTop = input$.scrollTop;
+        helper$.scrollLeft = input$.scrollLeft;
+        helper$.scrollTop = input$.scrollTop;
+      };
+      input$.addEventListener("scroll", onScroll);
+      return () => {
+        input$.removeEventListener("scroll", onScroll);
+      };
+    }
+  }, []);
 
   return (
     <div className="text-container">
@@ -217,11 +216,11 @@ export const YjsTextarea = (props: {
         onSelectionChange={onSelectionChange}
         onTextChange={onTextChange}
       />
-      <div className="overlay cursors-container">
-        {userInfos.map((userInfo) => renderCursor(userInfo))}
+      <div className="input overlay selection-helper-container hidden">
+        <div className="selection-helper" ref={helperRef} />
       </div>
-      <div className="input overlay selection-helper hidden" ref={overlayRef}>
-        {text}
+      <div className="overlay cursors-container" ref={cursorsRef}>
+        <div className="cursors-wrapper">{userInfos.map(renderCursor)}</div>
       </div>
     </div>
   );

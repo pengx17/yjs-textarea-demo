@@ -50,9 +50,7 @@ function App() {
 
   return (
     <div className="App">
-      <div className="text-container">
-        <YjsTextarea yText={yText} awareness={awareness} />
-      </div>
+      <YjsTextarea yText={yText} awareness={awareness} />
     </div>
   );
 }

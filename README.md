@@ -1,6 +1,6 @@
 # yjs-textarea-demo
 
-Demo https://vitejsvitepry5ji-erqs--5173.local-credentialless.webcontainer.io
+Playground https://stackblitz.com/edit/vitejs-vite-pry5ji
 
 https://user-images.githubusercontent.com/584378/212007131-f4b8fbae-1e20-4e7c-b23d-111ea59dd11c.mp4
 

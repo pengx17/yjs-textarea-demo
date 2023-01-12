@@ -12,5 +12,5 @@ A custom textarea yjs binding for self-learning purpose.
 - `y-indexeddb` for offline persistence
 - `y-webrtc` for RTC support
 - undo/redo
-- user cursors (using `Y.RelativePosition`)
-- React
+- user cursors & selection (using `Y.RelativePosition`)
+- textarea with Quill Delta support

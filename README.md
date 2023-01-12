@@ -11,6 +11,8 @@ A custom textarea yjs binding for self-learning purpose.
 
 - `y-indexeddb` for offline persistence
 - `y-webrtc` for RTC support
-- undo/redo
-- user cursors & selection (using `Y.RelativePosition`)
+- undo/redo (UndoManager)
+- user cursors & selection (awareness)
 - textarea with Quill Delta + yjs binding
+
+This helps me to clear my mind about how to use yjs in a real world application.

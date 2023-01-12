@@ -2,8 +2,20 @@ import React from "react";
 import * as Y from "yjs";
 import * as awarenessProtocol from "y-protocols/awareness.js";
 import { Textarea } from "./Textarea";
-import { UserInfo } from "./types";
 import { Op } from "quill-delta";
+
+interface SelectionRange {
+  id: string;
+  anchor: Y.RelativePosition;
+  focus: Y.RelativePosition; // only show anchor for now.
+}
+
+interface UserInfo {
+  id: number;
+  color: string;
+  cursor?: SelectionRange;
+  current: boolean;
+}
 
 const useAwarenessUserInfos = (awareness?: awarenessProtocol.Awareness) => {
   const [userInfos, setUserInfos] = React.useState<UserInfo[]>([]);
@@ -68,7 +80,7 @@ export const YjsTextarea = (props: {
     }
   }, [yText]);
 
-  const onSelectionChange = React.useCallback(() => {
+  const resetLocalAwarenessCursors = React.useCallback(() => {
     if (ref.current && awareness && yText) {
       const s = ref.current.selectionStart;
       const e = ref.current.selectionEnd;
@@ -79,7 +91,8 @@ export const YjsTextarea = (props: {
     }
   }, [yText, awareness]);
 
-  const onTextChange = React.useCallback(
+  // handle local update: apply deltas to yText
+  const handleLocalTextChange = React.useCallback(
     (delta: Op[] | "undo" | "redo") => {
       const input$ = ref.current;
       if (yText && undoManager && input$) {
@@ -92,45 +105,43 @@ export const YjsTextarea = (props: {
         }
         input$.value = yText.toString();
       }
-      onSelectionChange();
+      resetLocalAwarenessCursors();
     },
-    [undoManager, yText]
+    [undoManager, yText, resetLocalAwarenessCursors]
   );
 
-  // handle remote update
+  // handle remote update: pull text from yDoc and set to native elements
   React.useEffect(() => {
     if (yText && yText.doc && ref.current && awareness) {
       const yDoc = yText.doc;
       const input$ = ref.current;
-      const updateListener = (_?: any, origin?: any) => {
-        input$.value = yText.toString();
-        if (origin !== undoManager && origin != null) {
+      const syncFromYDoc = (_?: any, origin?: any) => {
+        if (
+          (origin !== undoManager && origin != null) ||
+          input$.value !== yText.toString()
+        ) {
+          input$.value = yText.toString();
           const cursor: UserInfo["cursor"] = awareness.getLocalState()?.cursor;
-          const yPosRel0 = cursor?.anchor;
-          const yPosRel1 = cursor?.focus;
-          if (yPosRel0 && yPosRel1) {
-            const newRange = [
-              toAbsolute(yPosRel0, yDoc),
-              toAbsolute(yPosRel1, yDoc),
-            ] as const;
-            input$.setSelectionRange(newRange[0], newRange[1]);
-          }
+          const newRange = [
+            toAbsolute(cursor?.anchor, yDoc),
+            toAbsolute(cursor?.focus, yDoc),
+          ] as const;
+          input$.setSelectionRange(newRange[0], newRange[1]);
+          resetLocalAwarenessCursors();
         }
-        onSelectionChange();
       };
 
-      updateListener();
-      onSelectionChange();
-
-      yDoc.on("update", updateListener);
+      syncFromYDoc();
+      yDoc.on("update", syncFromYDoc);
 
       return () => {
-        yDoc.off("update", updateListener);
+        yDoc.off("update", syncFromYDoc);
       };
     }
-  }, [yText, undoManager]);
+  }, [yText, undoManager, resetLocalAwarenessCursors, awareness]);
 
-  const renderCursor = React.useCallback(
+  // render a user indicator
+  const renderUserIndicator = React.useCallback(
     (userInfo: UserInfo) => {
       const yDoc = yText?.doc;
       const text = yText?.toString() ?? "";
@@ -142,10 +153,6 @@ export const YjsTextarea = (props: {
 
       const [start, end] = [toAbsolute(anchor, yDoc), toAbsolute(focus, yDoc)];
       let rects = getClientRects(start, end);
-
-      if (start === end && rects.length > 0) {
-        rects = [rects.at(-1)!];
-      }
 
       return rects.map((rect, idx) => {
         return (
@@ -175,14 +182,16 @@ export const YjsTextarea = (props: {
         if (!helperRef.current || start === -1 || end === -1) {
           return [];
         }
+        // have to place a new line to make sure cursors can be rendered
         helperRef.current.textContent = text + "\n";
         if (helperRef.current.firstChild == null) {
           return [];
         }
+        const textNode = helperRef.current.firstChild;
         const range = document.createRange();
-        const max = text?.length ?? Number.MAX_VALUE;
-        range.setStart(helperRef.current.firstChild, Math.min(start, max));
-        range.setEnd(helperRef.current.firstChild, Math.min(end, max));
+        range.setStart(textNode, start);
+        range.setEnd(textNode, end);
+
         return Array.from(range.getClientRects());
       }
     },
@@ -201,7 +210,7 @@ export const YjsTextarea = (props: {
         helper$.scrollLeft = input$.scrollLeft;
         helper$.scrollTop = input$.scrollTop;
       };
-      input$.addEventListener("scroll", onScroll);
+      input$.addEventListener("scroll", onScroll, { passive: true });
       return () => {
         input$.removeEventListener("scroll", onScroll);
       };
@@ -213,14 +222,17 @@ export const YjsTextarea = (props: {
       <Textarea
         className="input"
         ref={ref}
-        onSelectionChange={onSelectionChange}
-        onTextChange={onTextChange}
+        onSelectionChange={resetLocalAwarenessCursors}
+        onTextChange={handleLocalTextChange}
       />
+      {/* A hidden layer helper for calculating the selection rects */}
       <div className="input overlay selection-helper-container hidden">
         <div className="selection-helper" ref={helperRef} />
       </div>
       <div className="overlay cursors-container" ref={cursorsRef}>
-        <div className="cursors-wrapper">{userInfos.map(renderCursor)}</div>
+        <div className="cursors-wrapper">
+          {userInfos.flatMap(renderUserIndicator)}
+        </div>
       </div>
     </div>
   );

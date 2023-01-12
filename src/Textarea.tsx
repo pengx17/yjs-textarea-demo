@@ -81,27 +81,28 @@ export const Textarea = React.forwardRef(
 
     return (
       <textarea
-        ref={(r) => {
-          if (!r) {
+        ref={(textarea$) => {
+          if (!textarea$) {
             return;
           }
+          // hack the textarea's value setter to get the latest value
           const { set, ...rest } = Reflect.getOwnPropertyDescriptor(
-            r,
+            textarea$,
             "value"
           )!;
-          Reflect.defineProperty(r, "value", {
+          Reflect.defineProperty(textarea$, "value", {
             ...rest,
             set(newValue: string) {
               valueRef.current = newValue;
-              set!.call(r, newValue);
+              set!.call(textarea$, newValue);
             },
           });
           if (typeof ref === "function") {
-            ref(r);
+            ref(textarea$);
           } else if (ref) {
-            ref.current = r;
+            ref.current = textarea$;
           }
-          innerRef.current = r;
+          innerRef.current = textarea$;
         }}
         {...rest}
       />

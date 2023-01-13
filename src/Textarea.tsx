@@ -14,10 +14,11 @@ export const Textarea = React.forwardRef(
     const innerRef = React.useRef<HTMLTextAreaElement | null>();
     const rangeRef = React.useRef([0, 0]);
     const valueRef = React.useRef("");
+    const isComposingRef = React.useRef(false);
 
     const handleSelectionChange = React.useCallback(() => {
       const input$ = innerRef.current;
-      if (!input$) {
+      if (!input$ || isComposingRef.current) {
         return;
       }
       const { selectionStart, selectionEnd } = input$;
@@ -42,8 +43,11 @@ export const Textarea = React.forwardRef(
       if (innerRef?.current) {
         const input$ = innerRef.current;
         valueRef.current = input$.value;
-        const listener = (e: InputEvent) => {
+        const handleInput = (e: InputEvent) => {
           const inputType = e.inputType;
+          if (e.isComposing) {
+            return; // handle composition events separately
+          }
           // input event is earlier than selectionchange, so this oldRange is reliable
           const oldRange = rangeRef.current;
           const oldValue = valueRef.current;
@@ -70,11 +74,25 @@ export const Textarea = React.forwardRef(
             handleSelectionChange();
           }
         };
+        const handleCompositionStart = () => {
+          isComposingRef.current = true;
+        };
+        const handleCompositionEnd = () => {
+          isComposingRef.current = false;
+          handleInput({ inputType: "insertText", isComposing: false } as any);
+        };
         // @ts-ignore
-        input$.addEventListener("input", listener);
+        input$.addEventListener("input", handleInput);
+        window.addEventListener("compositionstart", handleCompositionStart);
+        window.addEventListener("compositionend", handleCompositionEnd);
         return () => {
           // @ts-ignore
-          input$.removeEventListener("input", listener);
+          input$.removeEventListener("input", handleInput);
+          window.removeEventListener(
+            "compositionstart",
+            handleCompositionStart
+          );
+          window.removeEventListener("compositionend", handleCompositionEnd);
         };
       }
     }, [onTextChange]);

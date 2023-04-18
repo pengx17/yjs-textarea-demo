@@ -112,7 +112,7 @@ export const YjsTextarea = (props: {
 
   // handle remote update: pull text from yDoc and set to native elements
   React.useEffect(() => {
-    if (yText && yText.doc && ref.current && awareness) {
+    if (yText && yText.doc && ref.current) {
       const yDoc = yText.doc;
       const input$ = ref.current;
       const syncFromYDoc = (_?: any, origin?: any) => {
@@ -121,6 +121,9 @@ export const YjsTextarea = (props: {
           input$.value !== yText.toString()
         ) {
           input$.value = yText.toString();
+          if (!awareness) {
+            return;
+          }
           const cursor: UserInfo["cursor"] = awareness.getLocalState()?.cursor;
           const newRange = [
             toAbsolute(cursor?.anchor, yDoc),

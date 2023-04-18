@@ -1,0 +1,16 @@
+{
+  "name": "@demo/server",
+  "private": true,
+  "dependencies": {
+    "@fastify/cors": "^8.2.1",
+    "@types/node": "^18.15.11",
+    "fastify": "^4.15.0",
+    "lib0": "^0.2.73",
+    "sqlite3": "^5.1.6",
+    "tsx": "^3.12.6",
+    "yjs": "^13.5.52"
+  },
+  "scripts": {
+    "dev": "tsx watch ./main.ts"
+  }
+}
